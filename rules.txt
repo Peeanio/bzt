@@ -1,0 +1,8 @@
+sudo ip xfrm policy setdefault in block #strongswan configures the SA when conn setup
+
+
+iptables -A INPUT -p esp -j ACCEPT
+iptables -A INPUT -s other_ip -p udp --dport 4500 -j ACCEPT
+iptables -A INPUT -s other_ip -p udp --dport 500 -j ACCEPT
+iptables -A INPUT -s other_ip -p tcp --dport service_port -j ACCEPT
+iptables -P INPUT drop #default drop
