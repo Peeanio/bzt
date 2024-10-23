@@ -27,9 +27,9 @@ to quickly create a Cobra application.`,
 	// Uncomment the following line if your bare application
 	// has an action associated with it:
 	Run: func(cmd *cobra.Command, args []string) {
-		var conf AgentClientConfig
-		conf.Cookies = []http.Cookies{}
-		agent.Run()
+		var conf agent.AgentClientConfig
+		conf.Cookies = []http.Cookie{http.Cookie{Name: "token", Value: "foo"}, http.Cookie{Name: "id", Value: "bar"}}
+		agent.Run(conf)
 	},
 }
 
