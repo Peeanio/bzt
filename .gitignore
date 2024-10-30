@@ -1,2 +1,5 @@
 *.db
 *.kate-swp
+bzt-agent
+bzt-client
+bzt-server
