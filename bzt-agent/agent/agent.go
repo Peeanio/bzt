@@ -103,9 +103,24 @@ func reload_ipsec() error {
 	var out strings.Builder
 	cmd.Stderr = &out
 	err := cmd.Run()
-	fmt.Println(out.String())
+	// fmt.Println(out.String())
 	if err != nil {
-		return errors.New(fmt.Sprintf("%s %s", err, out))
+		return errors.New(fmt.Sprintf("%s %s", err, out.String()))
+	}
+	return nil
+}
+
+func allow_connection(conn AgentConnectionTableEntry) error {
+	split := strings.Split(conn.Destination, ":")
+	proto := split[0]
+	port := split[len(split)-1]
+	source := conn.Source
+	cmd := exec.Command("iptables", "-A", "INPUT", "-s", source, "-p", proto, "--dport", port, "-j", "ACCEPT", "-m", "comment", "--comment", conn.UUID)
+	var out strings.Builder
+	cmd.Stderr = &out
+	err := cmd.Run()
+	if err != nil {
+		return errors.New(fmt.Sprintf("%s %s", err, out.String()))
 	}
 	return nil
 }
@@ -116,14 +131,18 @@ func Run(conf AgentClientConfig) {
 		log.Fatal(err)
 	}
 	for _, v := range conns {
-		create_conn_file(v)
+		err := create_conn_file(v)
 		if err != nil {
 			fmt.Println(err)
 		}
-		fmt.Println(v)
-	}
-	err = reload_ipsec()
-	if err != nil {
-		fmt.Println(err)
+		err = reload_ipsec()
+		if err != nil {
+			fmt.Println(err)
+		}
+		err = allow_connection(v)
+		if err != nil {
+			fmt.Println(err)
+		}
+
 	}
 }
