@@ -11,6 +11,7 @@ import (
 type ClientAuthRequest struct {
 	Token string `json:"token"`
 	Endpoint string `json:"endpoint"`
+	PeerId string `json:"peerid"`
 }
 
 func err_check(e error) {
@@ -107,7 +108,7 @@ func postClientAuthorize(c *gin.Context) {
 					"authorized":"failed",
 				})
 			} else {
-				err = data.AllowConnection(tokenEntry.Username, request.Endpoint, sourceIP, tm)
+				err = data.AllowConnection(tokenEntry.Username, request.Endpoint, sourceIP, request.PeerId, tm)
 				if err != nil {
 					log.Println(err)
 					c.JSON(http.StatusUnauthorized, gin.H{

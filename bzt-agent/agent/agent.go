@@ -8,13 +8,13 @@ import (
 	"os"
 	"time"
 	"strings"
+	"strconv"
 	"encoding/json"
 	"net/http"
 	"os/exec"
 	// "bzt-server/v2/data"
 )
 
-const endpoint = "http://127.0.0.1:8080"
 const ipsec_conf_path = "/etc/ipsec.conf.d"
 
 type AgentClientConfig struct {
@@ -31,10 +31,21 @@ type AgentConnectionTableEntry struct {
 	Username string `json:"username"`
 	Destination string `json:"destination"`
 	Source string `json:"source"`
+	PeerId string `json:"peerid"`
 	Expiry int `json:"expiry"`
 }
 
-func getConnections(clientConfig AgentClientConfig) ([]AgentConnectionTableEntry, error) {
+func UnixToTime(epoch int) (time.Time, error) {
+	t := strconv.Itoa(epoch)
+	i, err := strconv.ParseInt(t, 10, 64)
+	if err != nil {
+		return time.Unix(0, 0), err
+	}
+	tm := time.Unix(i, 0)
+	return tm, nil
+}
+
+func getConnections(clientConfig AgentClientConfig, endpoint string) ([]AgentConnectionTableEntry, error) {
 	var connections []AgentConnectionTableEntry
 	client := &http.Client{
 		Timeout: 30 * time.Second,
@@ -84,10 +95,11 @@ func create_conn_file(conn AgentConnectionTableEntry) (bool, error) {
 		}
 		defer conf_file.Close()
 		_, err = fmt.Fprintf(conf_file,
-			    "conn %s\n\ttype=transport\n\tauthby=secret\n\tleft=%s\n\tright=%s\n\tpfs=yes\n\tauto=start\n",
+			    "conn %s\n\ttype=transport\n\tauthby=pubkey\n\tleft=%s\n\tright=%s\n\tleftcert.pem\n\tauto=start\n\trightid=\"%s\"",
 			    conn.UUID,
 			    conn.Source,
-			    dest_ip)
+			    dest_ip,
+			    conn.PeerId)
 
 		if err != nil {
 			return false, err
@@ -115,7 +127,7 @@ func allow_connection(conn AgentConnectionTableEntry) error {
 	proto := split[0]
 	port := split[len(split)-1]
 	source := conn.Source
-	cmd := exec.Command("iptables", "-A", "INPUT", "-s", source, "-p", proto, "--dport", port, "-j", "ACCEPT", "-m", "comment", "--comment", conn.UUID)
+	cmd := exec.Command("iptables", "-A", "INPUT", "-s", source, "-p", proto, "--dport", port, "-j", "ACCEPT", "-m", "comment", "--comment", fmt.Sprintf("%s|%d", conn.UUID, conn.Expiry))
 	var out strings.Builder
 	cmd.Stderr = &out
 	err := cmd.Run()
@@ -127,7 +139,7 @@ func allow_connection(conn AgentConnectionTableEntry) error {
 }
 
 func check_if_conn_in_table(conn AgentConnectionTableEntry) bool {
-	cmd := exec.Command("iptables", "-L", "-v")
+	cmd := exec.Command("iptables", "-L", "-v", "-n")
 	var out strings.Builder
 	cmd.Stdout = &out
 	err := cmd.Run()
@@ -140,36 +152,117 @@ func check_if_conn_in_table(conn AgentConnectionTableEntry) bool {
 	return false//, err
 }
 
-func do_connections(conf AgentClientConfig){
-	conns, err := getConnections(conf)
-	if err != nil {
-		log.Fatal(err)
-	}
+// func check_if_conn_in_table2(conn AgentConnectionTableEntry) bool {
+// 	split := strings.Split(conn.Destination, ":")
+// 	proto := split[0]
+// 	port := split[len(split)-1]
+// 	source := conn.Source
+// 	cmd := exec.Command("iptables", "-C", "INPUT", "-s", source, "-p", proto, "--dport", port, "-j", "ACCEPT", "-m", "comment", "--comment", fmt.Sprintf("%s|%d", conn.UUID, conn.Expiry))
+// 	err := cmd.Run()
+// 	if err != nil {
+// 		return false//, err
+// 	}
+// 	if strings.Contains(out.String(), conn.UUID) {
+// 		return true
+// 	}
+// 	return false//, err
+// }
+
+func do_connections(conns []AgentConnectionTableEntry){
 	for _, v := range conns {
-		changed, err := create_conn_file(v)
+		unix_exp, err := UnixToTime(v.Expiry)
 		if err != nil {
 			fmt.Println(err)
 			continue
 		}
-		if changed {
-			err = reload_ipsec()
+		if time.Now().Before(unix_exp) {
+			changed, err := create_conn_file(v)
 			if err != nil {
 				fmt.Println(err)
+				continue
 			}
-		}
-		allowed  := check_if_conn_in_table(v)
-		// if err != nil {
-		// 	fmt.Println(err)
-		// 	continue
-		// }
-		if allowed != true {
-			err = allow_connection(v)
-			if err != nil {
-				fmt.Println(err)
+			if changed {
+				err = reload_ipsec()
+				if err != nil {
+					fmt.Println(err)
+				}
+			}
+			allowed  := check_if_conn_in_table(v)
+			// if err != nil {
+			// 	fmt.Println(err)
+			// 	continue
+			// }
+			if allowed != true {
+				err = allow_connection(v)
+				if err != nil {
+					fmt.Println(err)
+				}
 			}
 		}
 
 	}
+}
+
+func do_cleanup(conns []AgentConnectionTableEntry){
+	for _, v := range conns {
+		unix_exp, err := UnixToTime(v.Expiry)
+		if err != nil {
+			fmt.Println(err)
+			continue
+		}
+		if time.Now().After(unix_exp) {
+			changed, err := remove_conn_file(v)
+			if err != nil {
+				fmt.Println(err)
+				continue
+			}
+			if changed {
+				err = reload_ipsec()
+				if err != nil {
+					fmt.Println(err)
+				}
+			}
+			allowed := check_if_conn_in_table(v)
+			if allowed == true {
+				err = remove_connection(v)
+				if err != nil {
+					fmt.Println(err)
+				}
+			}
+		}
+
+	}
+}
+
+func remove_conn_file(conn AgentConnectionTableEntry) (bool, error) {
+	file_path := fmt.Sprintf("%s/%s.conf", ipsec_conf_path, conn.UUID)
+	_, err := os.Stat(file_path)
+	if errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	}
+	err = os.Remove(file_path)
+	if err != nil {
+		log.Println(err)
+		return false, err
+	}
+	log.Println("removed %s", file_path)
+	return true, nil
+}
+
+func remove_connection(conn AgentConnectionTableEntry) error {
+	split := strings.Split(conn.Destination, ":")
+	proto := split[0]
+	port := split[len(split)-1]
+	source := conn.Source
+	cmd := exec.Command("iptables", "-D", "INPUT", "-s", source, "-p", proto, "--dport", port, "-j", "ACCEPT", "-m", "comment", "--comment", fmt.Sprintf("%s|%d", conn.UUID, conn.Expiry))
+	var out strings.Builder
+	cmd.Stderr = &out
+	err := cmd.Run()
+	if err != nil {
+		return errors.New(fmt.Sprintf("%s %s", err, out.String()))
+	}
+	fmt.Printf("removed %s iptables rule\n", conn.UUID)
+	return nil
 }
 
 func start_ipsec() error {
@@ -208,23 +301,69 @@ func iptables_default_drop() error {
 		fmt.Println(out.String())
 		return err
 	}
-	cmd = exec.Command("iptables", "-A", "INPUT", "-p", "esp", "-j", "ACCEPT")
+	cmd = exec.Command("iptables", "-C", "INPUT", "-p", "esp", "-j", "ACCEPT")
 	out, err = run_command_with_out(cmd)
 	if err != nil {
-		fmt.Println(out.String())
-		return err
+		if strings.Contains(out.String(), "iptables: Bad rule (does a matching rule exist in that chain?).") == true {
+			cmd = exec.Command("iptables", "-A", "INPUT", "-p", "esp", "-j", "ACCEPT")
+			out, err = run_command_with_out(cmd)
+			if err != nil {
+				fmt.Println(out.String())
+				return err
+			}
+		} else {
+			fmt.Println(out.String())
+			return err
+		}
 	}
-	cmd = exec.Command("iptables", "-A", "INPUT", "-p", "udp", "--dport", "4500", "-j", "ACCEPT")
+	cmd = exec.Command("iptables", "-C", "INPUT", "-m", "state", "--state", "ESTABLISHED,RELATED", "-j", "ACCEPT")
 	out, err = run_command_with_out(cmd)
 	if err != nil {
 		fmt.Println(out.String())
-		return err
+		if strings.Contains(out.String(), "iptables: Bad rule (does a matching rule exist in that chain?).") == true {
+			cmd = exec.Command("iptables", "-A", "INPUT", "-m", "state", "--state", "ESTABLISHED,RELATED", "-j", "ACCEPT")
+			out, err = run_command_with_out(cmd)
+			if err != nil {
+				fmt.Println(out.String())
+				return err
+			}
+		} else {
+			fmt.Println(out.String())
+			return err
+		}
 	}
-	cmd = exec.Command("iptables", "-A", "INPUT", "-p", "udp", "--dport", "500", "-j", "ACCEPT")
+	cmd = exec.Command("iptables", "-C", "INPUT", "-p", "udp", "--dport", "4500", "-j", "ACCEPT")
 	out, err = run_command_with_out(cmd)
 	if err != nil {
 		fmt.Println(out.String())
-		return err
+		if strings.Contains(out.String(), "iptables: Bad rule (does a matching rule exist in that chain?).") == true {
+			cmd = exec.Command("iptables", "-A", "INPUT", "-p", "udp", "--dport", "4500", "-j", "ACCEPT")
+			out, err = run_command_with_out(cmd)
+			if err != nil {
+				fmt.Println(out.String())
+				return err
+			}
+		} else {
+			fmt.Println(out.String())
+			return err
+		}
+	}
+	cmd = exec.Command("iptables", "-C", "INPUT", "-p", "udp", "--dport", "500", "-j", "ACCEPT")
+	out, err = run_command_with_out(cmd)
+	if err != nil {
+		fmt.Println(out.String())
+		if strings.Contains(out.String(), "iptables: Bad rule (does a matching rule exist in that chain?).") == true {
+
+			cmd = exec.Command("iptables", "-A", "INPUT", "-p", "udp", "--dport", "500", "-j", "ACCEPT")
+			out, err = run_command_with_out(cmd)
+			if err != nil {
+				fmt.Println(out.String())
+				return err
+			}
+		} else {
+			fmt.Println(out.String())
+			return err
+		}
 	}
 	return nil
 }
@@ -248,11 +387,16 @@ func first_run() {
 
 }
 
-func Run(conf AgentClientConfig) {
+func Run(conf AgentClientConfig, endpoint string) {
 	first_run()
 	for {
+		conns, err := getConnections(conf, endpoint)
+		if err != nil {
+			log.Fatal(err)
+		}
+		go do_connections(conns)
+		go do_cleanup(conns)
 		time.Sleep(time.Second * 30)
-		go do_connections(conf)
-		fmt.Println("looping")
+		log.Println("looping")
 	}
 }

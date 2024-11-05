@@ -8,7 +8,6 @@ allow only port needed in fw
 certs /w expiry, or ecdfh-kex
 
 ## TODO
-- find iptables config to drop non-esp traffic
 - auth in rule
 
 ## USAGE

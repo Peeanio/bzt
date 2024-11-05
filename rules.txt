@@ -3,7 +3,12 @@ sudo ip xfrm policy getdefault
 sudo ip xfrm policy setdefault in accept #help suggest this is allow, not accept
 
 iptables -A INPUT -p esp -j ACCEPT
+iptables -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
 iptables -A INPUT -s other_ip -p udp --dport 4500 -j ACCEPT
 iptables -A INPUT -s other_ip -p udp --dport 500 -j ACCEPT
 iptables -A INPUT -s other_ip -p tcp --dport service_port -j ACCEPT
 iptables -P INPUT DROP #default drop
+
+
+openssl req -newkey ed25519:2048 -noenc -keyout domain.key -out domain.csr
+openssl x509 -req -in domain.csr -CA ca.crt -CAkey ca.key -out domain.crt -days 365

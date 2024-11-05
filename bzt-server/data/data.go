@@ -33,6 +33,7 @@ type AgentConnectionTableEntry struct {
 	Username string `json:"username"`
 	Destination string `json:"destination"`
 	Source string `json:"source"`
+	PeerId string `json:"peerid"`
 	Expiry int `json:"expiry"`
 }
 
@@ -112,7 +113,7 @@ func CheckClientToken(tokenValue string) (bool, ClientTokenTableEntry, error) {
 	}
 }
 
-func AllowConnection(username string, connection string, source string, expiry time.Time) error {
+func AllowConnection(username string, connection string, source string, peerid string, expiry time.Time) error {
 	db, err := sql.Open("sqlite3", fileName)
 	if err != nil {
 		log.Print(err)
@@ -123,7 +124,7 @@ func AllowConnection(username string, connection string, source string, expiry t
 		log.Print(err)
 		return err
 	}
-	result, err := db.Exec("INSERT INTO connections values(?, ?, ?, ?, ?);", uuid, username, connection, source, expiry.Unix())
+	result, err := db.Exec("INSERT INTO connections values(?, ?, ?, ?, ?, ?);", uuid, username, connection, source, peerid, expiry.Unix())
 	log.Print(result)
 	if err != nil {
 		log.Print(err)
@@ -144,7 +145,7 @@ func ReadConnections() ([]AgentConnectionTableEntry, error) {
 	} else {
 		for rows.Next() {
 			var row AgentConnectionTableEntry
-			if err := rows.Scan(&row.UUID, &row.Username, &row.Destination, &row.Source, &row.Expiry); err != nil {
+			if err := rows.Scan(&row.UUID, &row.Username, &row.Destination, &row.Source, &row.PeerId, &row.Expiry); err != nil {
 				return connections, err
 			}
 			connections = append(connections, row)
