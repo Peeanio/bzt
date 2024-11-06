@@ -12,11 +12,11 @@ bzt (Berkeley Zero Trust) is a proof of concept zero trust implementation, utili
 
 1. Create or obtain a CA to sign certificates to use
 2. Issue a certificate to the `bzt-server` system to use, and one any system connection over ipsec
-3. Setup an ipsec session between the server and the agent, and server and client
-4. Seed the server with agent tokens 
+3. Setup an ipsec session between the server and the agent, and server and client if enforcing ipsec on the server (not required)
+4. Seed the server with tokens 
 5. Start the agent
 6. Authorize connections from clients to backends via the API
-7. Connect from client to destination agent
+7. Connect from client to destination agent server
 
 ### Quickstart
 
@@ -26,13 +26,13 @@ openssl req -newkey ed25519:2049 -noenc -keyout ca.key -out ca.crt -days 365 -su
 ```
 2. Create a server cert, agent cert, client cert
 ```
-openssl req -newkey ed25519:2048 -noenc -keyout server.key -out server.csr -subj "/CN=server.bzt.lan
+openssl req -newkey ed25519:2048 -noenc -keyout server.key -out server.csr -subj "/CN=server.bzt.lan"
 openssl x509 -req -in server.csr -CA ca.crt -CAkey ca.key -out server.crt -days 365
 
-openssl req -newkey ed25519:2048 -noenc -keyout agent.key -out agent.csr -subj "/CN=agent.bzt.lan
+openssl req -newkey ed25519:2048 -noenc -keyout agent.key -out agent.csr -subj "/CN=agent.bzt.lan"
 openssl x509 -req -in agent.csr -CA ca.crt -CAkey ca.key -out agent.crt -days 365
 
-openssl req -newkey ed25519:2048 -noenc -keyout client.key -out client.csr -subj "/CN=client.bzt.lan
+openssl req -newkey ed25519:2048 -noenc -keyout client.key -out client.csr -subj "/CN=client.bzt.lan"
 openssl x509 -req -in client.csr -CA ca.crt -CAkey ca.key -out client.crt -days 365
 ```
 3. Create the inital ipsec connection for server, agent, and client
