@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
 	"io"
@@ -95,9 +96,9 @@ func create_conn_file(conn AgentConnectionTableEntry) (bool, error) {
 		}
 		defer conf_file.Close()
 		_, err = fmt.Fprintf(conf_file,
-			    "conn %s\n\ttype=transport\n\tauthby=pubkey\n\tleft=%s\n\tright=%s\n\tleftcert.pem\n\tauto=start\n\trightid=\"%s\"",
-			    conn.UUID,
+			    "conn %s\n\ttype=transport\n\tauthby=pubkey\n\tleft=%s\n\tright=%s\n\tleftcert=pem\n\tauto=start\n\trightid=\"%s\"",
 			    conn.Source,
+			    conn.UUID,
 			    dest_ip,
 			    conn.PeerId)
 
@@ -264,7 +265,35 @@ func remove_connection(conn AgentConnectionTableEntry) error {
 	fmt.Printf("removed %s iptables rule\n", conn.UUID)
 	return nil
 }
+func ensure_include_for_ipsec() error {
+	file, err := os.OpenFile("/etc/ipsec.conf", os.O_APPEND|os.O_RDWR, 0644)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer file.Close()
 
+	scanner := bufio.NewScanner(file)
+	// optionally, resize scanner's capacity for lines over 64K, see next example
+	var present bool
+	for scanner.Scan() {
+		line := scanner.Text()
+		if contains := strings.Contains(line, "include /etc/ipsec.conf.d/*.conf"); contains {
+			present = true
+			continue
+		}
+	}
+	if !present {
+		log.Println("writing config include")
+		if _, err := file.WriteString("include /etc/ipsec.conf.d/*.conf\n"); err != nil {
+			return err
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return err
+	}
+	return nil
+}
 func start_ipsec() error {
 	cmd := exec.Command("systemctl", "start", "ipsec")
 	err := cmd.Run()
@@ -369,7 +398,12 @@ func iptables_default_drop() error {
 }
 
 func first_run() {
-	err := start_ipsec()
+	err := ensure_include_for_ipsec()
+	if err != nil {
+		log.Fatalf("ipsec config include set %s", err)
+
+	}
+	err = start_ipsec()
 	if err != nil {
 		log.Fatalf("ipsec start %s", err)
 
