@@ -10,7 +10,7 @@ bzt (Berkeley Zero Trust) is a proof of concept zero trust implementation, utili
 ## Usage
 
 1. Create or obtain a CA to sign certificates to use
-2. Issue a certificate to the `bzt-server` system to use, and one any system connection over ipsec
+2. Issue a certificate to the `bzt-server` system to use, and one to any system connecting over ipsec
 3. Setup an ipsec session between the server and the agent, and server and client if enforcing ipsec on the server (not required)
 4. Seed the server with tokens 
 5. Start the agent
@@ -39,33 +39,25 @@ openssl x509 -req -in client.csr -CA ca.crt -CAkey ca.key -out client.crt -days 
 ```
 ...
 conn toagent
-    type transport
-    authby pubkey
+    type=transport
+    authby=pubkey
     left=agent.lan
     right=server.lan
     auto=start
-    leftcert="CN=agent.bzt.lan"
-    keyexchange=ikev2
-    ike=aes256-sha512-mod4096!
-    esp=aes256-sha512-mod4096!
-    closeaction=restart
-    dpdaction=restart
+    leftid="CN=agent.bzt.lan"
+    rightcert=server.pem
 ```
 * agent `/etc/ipsec.conf`
 ```
 ...
 conn toserver
-    type transport
-    authby pubkey
+    type=transport
+    authby=pubkey
     left=server.lan
     right=agent.lan
     auto=start
-    leftcert="CN=server.bzt.lan"
-    keyexchange=ikev2
-    ike=aes256-sha512-mod4096!
-    esp=aes256-sha512-mod4096!
-    closeaction=restart
-    dpdaction=restart
+    leftid="CN=server.bzt.lan"
+    rightcert=agent.pem
 ```
 * client `/etc/ipsec.conf`
 ```
@@ -77,23 +69,15 @@ conn toserver
     right=client.lan
     auto=start
     leftcert="CN=server.bzt.lan"
-    keyexchange=ikev2
-    ike=aes256-sha512-mod4096!
-    esp=aes256-sha512-mod4096!
-    closeaction=restart
-    dpdaction=restart
+    rightid=client.pem
 conn toagent
     type transport
     authby pubkey
     left=agent.lan
     right=client.lan
     auto=start
-    leftcert="CN=agent.bzt.lan"
-    keyexchange=ikev2
-    ike=aes256-sha512-mod4096!
-    esp=aes256-sha512-mod4096!
-    closeaction=restart
-    dpdaction=restart
+    leftid="CN=agent.bzt.lan"
+    rightcert=client.pem
 ```
 4. Create a sqlite database on the server, seed with an inital token for agents and users
 ```
