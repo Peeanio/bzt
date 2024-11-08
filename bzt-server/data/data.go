@@ -1,18 +1,18 @@
 package data
 
 import (
-	//"fmt"
+	// "fmt"
 	"errors"
 	"log"
 	"time"
 	"strconv"
 	"database/sql"
 	"github.com/google/uuid"
+	"github.com/spf13/viper"
 	_ "github.com/ncruces/go-sqlite3/driver"
 	_ "github.com/ncruces/go-sqlite3/embed"
 )
 
-const fileName = "file:sqlite.db"
 const tokenTable = "tokens"
 const connTable = "connections"
 
@@ -48,7 +48,7 @@ func UnixToTime(epoch int) (time.Time, error) {
 }
 
 func CheckAgentToken(token string) (bool, error) {
-	db, err := sql.Open("sqlite3", fileName)
+	db, err := sql.Open("sqlite3", viper.GetString("dbfile"))
 	if err != nil {
 		log.Print(err)
 		return false, err
@@ -72,7 +72,7 @@ func CheckAgentToken(token string) (bool, error) {
 }
 
 func CheckClientToken(tokenValue string) (bool, ClientTokenTableEntry, error) {
-	db, err := sql.Open("sqlite3", fileName)
+	db, err := sql.Open("sqlite3", viper.GetString("dbfile"))
 	if err != nil {
 		log.Print(err)
 		return false,
@@ -114,7 +114,7 @@ func CheckClientToken(tokenValue string) (bool, ClientTokenTableEntry, error) {
 }
 
 func AllowConnection(username string, connection string, source string, peerid string, expiry time.Time) error {
-	db, err := sql.Open("sqlite3", fileName)
+	db, err := sql.Open("sqlite3", viper.GetString("dbfile"))
 	if err != nil {
 		log.Print(err)
 		return err
@@ -135,7 +135,7 @@ func AllowConnection(username string, connection string, source string, peerid s
 
 func ReadConnections() ([]AgentConnectionTableEntry, error) {
 	var connections []AgentConnectionTableEntry
-	db, err := sql.Open("sqlite3", fileName)
+	db, err := sql.Open("sqlite3", viper.GetString("dbfile"))
 	if err != nil {
 		return connections, nil
 	}

@@ -13,6 +13,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"os/exec"
+	"github.com/spf13/viper"
 	// "bzt-server/v2/data"
 )
 
@@ -96,9 +97,10 @@ func create_conn_file(conn AgentConnectionTableEntry) (bool, error) {
 		}
 		defer conf_file.Close()
 		_, err = fmt.Fprintf(conf_file,
-			    "conn %s\n\ttype=transport\n\tauthby=pubkey\n\tleft=%s\n\tright=%s\n\tleftcert=pem\n\tauto=start\n\trightid=\"%s\"",
+			    "conn %s\n\ttype=transport\n\tauthby=pubkey\n\tleft=%s\n\tright=%s\n\tleftcert=%s\n\tauto=start\n\trightid=\"%s\"",
 			    conn.Source,
 			    conn.UUID,
+			    viper.GetString("cert"),
 			    dest_ip,
 			    conn.PeerId)
 
@@ -419,12 +421,25 @@ func first_run() {
 
 	}
 
+	_, err = create_conn_file(AgentConnectionTableEntry{
+		"bzt-server",
+		"",
+		"",
+		"%any",
+		viper.GetString("serverpeerid"),
+		9999999999999,
+	})
+	if err != nil {
+		log.Fatal("peer connection to server failed %s", err)
+
+	}
+
 }
 
-func Run(conf AgentClientConfig, endpoint string) {
+func Run(conf AgentClientConfig) {
 	first_run()
 	for {
-		conns, err := getConnections(conf, endpoint)
+		conns, err := getConnections(conf, viper.GetString("server"))
 		if err != nil {
 			log.Fatal(err)
 		}

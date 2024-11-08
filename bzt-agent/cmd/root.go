@@ -9,11 +9,11 @@ import (
 	"log"
 	"net/http"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 	"bzt-agent/v2/agent"
 )
 
-
-const endpoint = "http://127.0.0.1:8080"
+var cfgFile string
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
@@ -29,13 +29,8 @@ to quickly create a Cobra application.`,
 	// has an action associated with it:
 	Run: func(cmd *cobra.Command, args []string) {
 		var conf agent.AgentClientConfig
-		conf.Cookies = []http.Cookie{http.Cookie{Name: "token", Value: "baz"}, http.Cookie{Name: "id", Value: "foo"}}
-		s_endpoint, err := cmd.Flags().GetString("server")
-		if err != nil {
-			log.Println(err)
-			s_endpoint = endpoint
-		}
-		agent.Run(conf, s_endpoint)
+		conf.Cookies = []http.Cookie{http.Cookie{Name: "token", Value: viper.GetString("token")}, http.Cookie{Name: "id", Value: viper.GetString("agentid")}}
+		agent.Run(conf)
 	},
 }
 
@@ -53,12 +48,38 @@ func init() {
 	// Cobra supports persistent flags, which, if defined here,
 	// will be global for your application.
 
-	// rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.v2.yaml)")
+	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.bzt-agent.yaml)")
 
 	// Cobra also supports local flags, which will only run
 	// when this action is called directly.
-	rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
-	rootCmd.Flags().String("server", "http://127.0.0.1:8080", "Server uri to connect to")
+	// rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+	cobra.OnInitialize(initConfig)
+	viper.SetDefault("server", "http://127.0.0.1:8080")
+	viper.SetDefault("cert", "cert.pem") //cert to use as the agent. Keyfile should be defined in /etc/ipsec.secrets if needed
+	viper.SetDefault("token", "token") //agent login token
+	viper.SetDefault("serverpeerid", "CN=bzt-server.lan") //cert trust string from cert of bzt-server
+	viper.SetDefault("agentid", "agent") //agent identifier
 }
 
+func initConfig() {
+	if cfgFile != "" {
+		// Use config file from the flag.
+		viper.SetConfigFile(cfgFile)
+	} else {
+		// Find home directory.
+		home, err := os.UserHomeDir()
+		cobra.CheckErr(err)
 
+		// Search config in home directory with name ".bzt-server"
+		viper.AddConfigPath(home)
+		viper.SetConfigType("yaml")
+		viper.SetConfigName(".bzt-agent.yaml")
+	}
+
+	viper.AutomaticEnv() // read in environment variables that match
+
+	// If a config file is found, read it in.
+	if err := viper.ReadInConfig(); err == nil {
+		log.Println(os.Stderr, "Using config file:", viper.ConfigFileUsed())
+	}
+}

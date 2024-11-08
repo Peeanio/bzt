@@ -4,9 +4,8 @@ bzt (Berkeley Zero Trust) is a proof of concept zero trust implementation, utili
 
 ## TODO
 
-- all: use viper for configuration
 - server: implement ca signing and distribution of certs
-- client: whole tool
+- agent client mode: saml sso to get token
 
 ## Usage
 
