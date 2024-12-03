@@ -87,7 +87,13 @@ func getConnections(clientConfig AgentClientConfig, endpoint string) ([]AgentCon
 
 func create_conn_file(conn AgentConnectionTableEntry) (bool, error) {
 	file_path := fmt.Sprintf("%s/%s.conf", ipsec_conf_path, conn.UUID)
-	dest_ip := strings.Split(conn.Destination, ":")[0]
+	dest_ip := ""
+	if strings.Split(conn.Destination, ":")[0] == "tcp" {
+		dest_ip = strings.Replace(strings.Split(conn.Destination, ":")[1], "/", "", -1)
+	} else {
+		dest_ip = strings.Split(conn.Destination, ":")[0]
+	}
+	fmt.Println(dest_ip)
 	if _, err := os.Stat(file_path); err == nil {
 		return false, nil//errors.New(fmt.Sprintf("Not creating conf file for %s, connection file exists!", conn.UUID))
 	} else if errors.Is(err, os.ErrNotExist) {
@@ -98,10 +104,10 @@ func create_conn_file(conn AgentConnectionTableEntry) (bool, error) {
 		defer conf_file.Close()
 		_, err = fmt.Fprintf(conf_file,
 			    "conn %s\n\ttype=transport\n\tauthby=pubkey\n\tleft=%s\n\tright=%s\n\tleftcert=%s\n\tauto=start\n\trightid=\"%s\"",
-			    conn.Source,
 			    conn.UUID,
-			    viper.GetString("cert"),
 			    dest_ip,
+			    conn.Source,
+			    viper.GetString("cert"),
 			    conn.PeerId)
 
 		if err != nil {
