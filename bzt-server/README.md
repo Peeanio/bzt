@@ -11,6 +11,9 @@ go build
 `~/.bzt-server.yaml`
 ```
 dbfile: "file:sqlite.db"
+server_listen_port: "8080"
+server_listen_cert: "/etc/ipsec.d/certs/domain.crt"
+server_listen_key: "/etc/ipsec.d/private/domain.key"
 ```
 
 ## DB Schema

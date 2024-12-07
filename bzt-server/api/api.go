@@ -1,10 +1,11 @@
 package api
 
 import (
-	//"fmt"
+	"fmt"
 	"log"
 	"net/http"
 	"github.com/gin-gonic/gin"
+	"github.com/spf13/viper"
 	"bzt-server/v2/data"
 )
 
@@ -30,8 +31,11 @@ func Run() {
 	})
 	route.POST("/client/authorize", postClientAuthorize)
 	route.GET("/agent/connections", getAgentConnections)
-
-	route.Run(":8080")
+	if viper.IsSet("server_listen_cert") && viper.IsSet("server_listen_key") {
+		route.RunTLS(fmt.Sprintf(":%s",viper.GetString("server_listen_port")), viper.GetString("server_listen_cert"), viper.GetString("server_listen_key"))
+	} else {
+		route.Run(fmt.Sprintf(":%s", viper.GetString("server_listen_port")))
+	}
 }
 
 func getAgentConnections(c *gin.Context) {

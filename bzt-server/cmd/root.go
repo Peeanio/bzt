@@ -50,6 +50,7 @@ func init() {
 	rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 	cobra.OnInitialize(initConfig)
 	viper.SetDefault("dbfile", "file:sqlite.db")
+	viper.SetDefault("server_listen_port", "8080")
 }
 
 func initConfig() {
@@ -72,7 +73,12 @@ func initConfig() {
 	// If a config file is found, read it in.
 	if err := viper.ReadInConfig(); err == nil {
 		log.Println(os.Stderr, "Using config file:", viper.ConfigFileUsed())
+	} else {
+		log.Fatal(err)
 	}
+	//default values set
+	viper.SetDefault("dbfile", "file:sqlite.db")
+	viper.SetDefault("server_listen_port", "8080")
 }
 
 
