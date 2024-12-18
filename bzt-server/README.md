@@ -22,3 +22,5 @@ CREATE TABLE agents(ID int primary key, Token, Expiry);
 CREATE TABLE tokens(Token text primary key, Username text, Expiry int);
 CREATE TABLE connections(UUID text primary key, Username text, Connection text, Source text, PeerID text, Expiry int);
 ```
+https://github.com/coreos/go-oidc
+https://pkg.go.dev/golang.org/x/oauth2
